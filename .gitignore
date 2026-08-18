@@ -1,0 +1,28 @@
+# 构建产物
+build/
+.gradle/
+app/build/
+
+# 本地配置（含 SDK 路径，不入库）
+local.properties
+keystore.properties
+
+# 签名文件（绝不可入库）
+*.jks
+*.keystore
+
+# IDE 配置
+.idea/
+*.iml
+.vscode/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 提交门禁合格证（临时凭证，不入库）
+.claude/gate/
+
+# 其他
+*.log
+captures/
