@@ -89,4 +89,5 @@ dependencies {
     // —— 测试（纯 JVM）——
     testImplementation(libs.junit)
     testImplementation(libs.kotlin.test)
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:${libs.versions.coroutines.get()}")
 }
