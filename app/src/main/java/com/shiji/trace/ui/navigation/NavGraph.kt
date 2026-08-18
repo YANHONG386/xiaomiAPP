@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -25,6 +26,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.shiji.trace.R
+import com.shiji.trace.TimelineApp
 import com.shiji.trace.ui.screens.settings.SettingsScreen
 import com.shiji.trace.ui.screens.stats.StatsScreen
 import com.shiji.trace.ui.screens.timeline.TimelineScreen
@@ -53,6 +55,9 @@ private val topLevelDestinations = listOf(
 @Composable
 fun ShiJiNavGraph() {
     val navController = rememberNavController()
+    // 依赖容器（从应用上下文获取）
+    val appContext = LocalContext.current.applicationContext as TimelineApp
+    val container = appContext.container
     // 当前所在页面（用于底部导航高亮）
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -85,10 +90,10 @@ fun ShiJiNavGraph() {
             startDestination = "today",
             modifier = Modifier.padding(innerPadding)
         ) {
-            composable("today") { TodayScreen() }
+            composable("today") { TodayScreen(container) }
             composable("timeline") { TimelineScreen() }
             composable("stats") { StatsScreen() }
-            composable("settings") { SettingsScreen() }
+            composable("settings") { SettingsScreen(container) }
             // 详情页（M4 起添加）：应用详情、会话详情
             // composable("detail?package={packageName}") { ... }
         }
