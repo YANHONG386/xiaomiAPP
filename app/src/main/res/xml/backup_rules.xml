@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  时迹 —— 备份规则（安卓 12+ 云备份）
+  本应用纯本地数据，允许完整备份；数据库会随备份迁移到新机
+-->
+<full-backup-content>
+    <include domain="database" path="." />
+    <include domain="sharedpref" path="." />
+</full-backup-content>

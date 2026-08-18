@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  时迹 —— 应用图标前景（矢量）
+  图形含义：一条向上延伸的时间轨迹线 + 三个节点圆点
+  （应用使用时间的记录与回溯）
+  背景为小米橙 #FF6900，前景白色
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- 轨迹主线：从底部左侧蜿蜒到顶部右侧（时间线向上延伸） -->
+    <path
+        android:pathData="M22,78 C34,74 30,60 44,58 C58,56 52,40 66,38 C76,37 78,28 86,26"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+
+    <!-- 节点1：起点 -->
+    <path
+        android:pathData="M22,78 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 节点2：中间 -->
+    <path
+        android:pathData="M44,58 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
+        android:fillColor="#FFFFFF" />
+
+    <!-- 节点3：顶端终点 -->
+    <path
+        android:pathData="M86,26 m-4,0 a4,4 0 1,1 8,0 a4,4 0 1,1 -8,0"
+        android:fillColor="#FFFFFF" />
+</vector>

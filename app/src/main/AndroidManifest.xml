@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  时迹 —— 应用清单文件
+  红线：本应用是纯单机应用，绝不声明 INTERNET 权限（免备案硬性条件）
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      使用情况访问权限（特殊权限）：
+      用于读取系统应用使用统计（UsageStatsManager），需用户在系统设置中手动开启。
+      tools:ignore 是给 lint 看的（此权限默认受保护），实际申请是合法的。
+    -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- 注意：没有 INTERNET 权限，本应用完全离线运行 -->
+
+    <application
+        android:name=".TimelineApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ShiJi">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:enableOnBackInvokedCallback="true"
+            android:theme="@style/Theme.ShiJi">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>

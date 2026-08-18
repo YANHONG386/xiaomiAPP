@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 时迹 —— 颜色定义（小米澎湃系统风格，主色 #FF6900） -->
+<resources>
+    <!-- 小米橙主色 -->
+    <color name="miui_orange">#FF6900</color>
+</resources>

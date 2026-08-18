@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 时迹 —— 应用主题（Compose 界面使用，这里只提供启动背景） -->
+<resources>
+    <style name="Theme.ShiJi" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- 启动窗口背景用小米橙 -->
+        <item name="android:windowBackground">@color/miui_orange</item>
+    </style>
+</resources>
