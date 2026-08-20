@@ -72,6 +72,9 @@ import java.util.Locale
 /** 一天的长度（毫秒） */
 private const val DAY_MS = 86_400_000L
 
+/** 一小时的毫秒数（整点刻度用） */
+private const val HOUR_MS = 3_600_000L
+
 /** 一条泳道：某应用当天全部会话（按总时长降序排列泳道） */
 private data class AppLane(
     val packageName: String,
@@ -110,6 +113,11 @@ fun TimelineScreen(container: AppContainer) {
             .map { (pkg, list) -> AppLane(pkg, list, list.sumOf { it.durationMs }) }
             .sortedByDescending { it.totalMs }
     }
+
+    // 总览轨道范围：今天最早打开的应用时间 ~ 最晚结束时间（总览各泳道共用此范围，
+    // 即"总图从今天最早打开的应用时间开始计算"）
+    val overviewStartMs = lanes.minOfOrNull { it.sessions.minOf { s -> s.startTimeMs } } ?: 0L
+    val overviewEndMs = lanes.maxOfOrNull { it.sessions.maxOf { s -> s.endTimeMs } } ?: 0L
 
     // 并行组索引：会话 id → 它所属的并行组（区间重叠 + 包名命中）
     val groupBySession = remember(sessions, parallelGroups) {
@@ -192,11 +200,19 @@ fun TimelineScreen(container: AppContainer) {
                     expanded = expanded,
                     onToggle = { expanded = !expanded },
                 ) {
+                    // 总览刻度尺：范围 = 全部泳道合并的使用时段，左侧缩进对齐泳道轨道起点
+                    HourScale(
+                        rangeStartMs = overviewStartMs,
+                        rangeEndMs = overviewEndMs,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 92.dp, end = 10.dp, top = 4.dp)
+                    )
                     lanes.forEach { lane ->
                         AppLaneRow(
                             lane = lane,
-                            dayStartMs = dayStartMs,
-                            dayEndMs = dayEndMs,
+                            dayStartMs = overviewStartMs,
+                            dayEndMs = overviewEndMs,
                             isDark = isSystemInDarkTheme(),
                             groupBySession = groupBySession,
                             onSessionClick = { detailSessionId = it.id },
@@ -208,6 +224,9 @@ fun TimelineScreen(container: AppContainer) {
             // —— 每个应用独立的同款时间轴（默认收起）——
             items(lanes, key = { "app-${it.packageName}" }) { lane ->
                 var expanded by rememberSaveable(lane.packageName) { mutableStateOf(false) }
+                // 该应用轨道范围：自己的最早开始 ~ 最晚结束（每个应用各自从最左端开始计算）
+                val laneStartMs = lane.sessions.minOf { it.startTimeMs }
+                val laneEndMs = lane.sessions.maxOf { it.endTimeMs }
                 CollapsibleCard(
                     title = {
                         AppIcon(packageName = lane.packageName, size = 24.dp)
@@ -229,15 +248,23 @@ fun TimelineScreen(container: AppContainer) {
                     onToggle = { expanded = !expanded },
                 ) {
                     // 该应用的时间轴（全宽色块，样式与总览一致）
-                    TimelineTrack(
-                        sessions = lane.sessions,
-                        dayStartMs = dayStartMs,
-                        dayEndMs = dayEndMs,
-                        isDark = isSystemInDarkTheme(),
-                        groupBySession = groupBySession,
-                        onSessionClick = { detailSessionId = it.id },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    // 顶部先放刻度尺（范围 = 该应用使用时段），再画时间带
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        HourScale(
+                            rangeStartMs = laneStartMs,
+                            rangeEndMs = laneEndMs,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TimelineTrack(
+                            sessions = lane.sessions,
+                            dayStartMs = laneStartMs,
+                            dayEndMs = laneEndMs,
+                            isDark = isSystemInDarkTheme(),
+                            groupBySession = groupBySession,
+                            onSessionClick = { detailSessionId = it.id },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
             item { Spacer(Modifier.height(16.dp)) }
@@ -402,7 +429,7 @@ private fun AppLaneRow(
         }
         Spacer(Modifier.width(10.dp))
 
-        // 右侧：纯色块时间带（0:00 → 24:00，无文字）
+        // 右侧：纯色块时间带（范围 = 总览共用时段，从最早打开时间开始，无文字）
         TimelineTrack(
             sessions = lane.sessions,
             dayStartMs = dayStartMs,
@@ -416,8 +443,11 @@ private fun AppLaneRow(
 }
 
 /**
- * 时间带：0:00 → 24:00 横轴，会话 = 纯色块胶囊（按起止时间比例定位）
- * 注意：胶囊内不显示任何文字（观看更清爽）；并行段用橙色描边区分
+ * 时间带：横轴 = 该泳道使用时段（dayStartMs 最早开始 → dayEndMs 最晚结束），
+ * 会话 = 纯色块胶囊（按起止时间在时段内的比例定位，首个会话从最左端开始）
+ * - 胶囊内不显示任何文字（观看更清爽）；并行段用橙色描边区分
+ * - 每个胶囊右侧强制留 2dp 空隙：连续会话也保持可见边界，点击不误触
+ * - 时段内画整点淡竖线（刻度参照，帮助对照上方刻度尺读时间）
  */
 @Composable
 private fun TimelineTrack(
@@ -430,6 +460,8 @@ private fun TimelineTrack(
     modifier: Modifier = Modifier,
     trackHeight: Dp = 32.dp,
 ) {
+    if (sessions.isEmpty()) return
+    // 轨道跨度 = 使用时段（结束必晚于开始，正常数据恒 > 0，杜绝除零）
     val daySpan = (dayEndMs - dayStartMs).toFloat()
     BoxWithConstraints(
         modifier = modifier.height(trackHeight)
@@ -446,6 +478,20 @@ private fun TimelineTrack(
                     RoundedCornerShape(2.dp)
                 )
         )
+        // 整点淡竖线（背景层，后画的色块会压住它）：画时段内所有整点
+        // 用 < 而非 <=：dayEndMs 恰为整点时末根线会画在轨道右缘外 1dp，去掉它
+        var tickMs = (dayStartMs / HOUR_MS + 1) * HOUR_MS
+        while (tickMs < dayEndMs) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(x = trackWidth * ((tickMs - dayStartMs).toFloat() / daySpan))
+                    .width(1.dp)
+                    .height(26.dp)
+                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+            )
+            tickMs += HOUR_MS
+        }
         sessions.forEach { s ->
             val startRatio = ((s.startTimeMs - dayStartMs).toFloat() / daySpan)
                 .coerceIn(0f, 1f)
@@ -453,11 +499,12 @@ private fun TimelineTrack(
             val group = groupBySession[s.id]
             // 纯色块（无文字）：并行段 = 主题橙描边 + 淡橙底，普通段 = 应用色
             // 注意：必须 align(Center) 与底条同心，否则色块会贴顶盖住细条（视觉偏差约 3dp）
+            // 宽度 = 时长比例 - 2dp 留缝：相邻胶囊之间永远有可见空隙，点错概率大幅降低
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
                     .offset(x = trackWidth * startRatio)
-                    .width(trackWidth * widthRatio)
+                    .width(((trackWidth * widthRatio) - 2.dp).coerceAtLeast(6.dp))
                     .height(26.dp)
                     .clip(RoundedCornerShape(10.dp))
                     .then(
@@ -478,6 +525,37 @@ private fun TimelineTrack(
                     .clickable { onSessionClick(s) }
             )
         }
+    }
+}
+
+/**
+ * 刻度尺：标注轨道两端时间（范围 = 该泳道使用时段，起点在最左、终点在最右）
+ * 与 TimelineTrack 同一套"时间→像素"换算，展开卡片时帮助把色块和具体时间对应
+ * 轨道宽度即时段跨度，起止标签天然在两端，无需防重叠处理
+ */
+@Composable
+private fun HourScale(
+    rangeStartMs: Long,
+    rangeEndMs: Long,
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(modifier = modifier.height(16.dp)) {
+        val timeStyle = MaterialTheme.typography.labelSmall
+        val timeColor = MaterialTheme.colorScheme.onSurfaceVariant
+        // 起始标签：轨道最左端（即该应用/总览最早打开时间）
+        Text(
+            TimeFormat.formatTime(rangeStartMs),
+            style = timeStyle,
+            color = timeColor,
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+        // 结束标签：轨道最右端（即最晚结束时间）
+        Text(
+            TimeFormat.formatTime(rangeEndMs),
+            style = timeStyle,
+            color = timeColor,
+            modifier = Modifier.align(Alignment.TopEnd)
+        )
     }
 }
 
