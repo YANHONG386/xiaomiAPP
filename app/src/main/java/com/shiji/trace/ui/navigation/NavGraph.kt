@@ -30,6 +30,7 @@ import androidx.navigation.navArgument
 import com.shiji.trace.R
 import com.shiji.trace.TimelineApp
 import com.shiji.trace.ui.screens.appdetail.AppDetailScreen
+import com.shiji.trace.ui.screens.privacy.PrivacyPolicyScreen
 import com.shiji.trace.ui.screens.settings.SettingsScreen
 import com.shiji.trace.ui.screens.stats.StatsScreen
 import com.shiji.trace.ui.screens.timeline.TimelineScreen
@@ -101,7 +102,16 @@ fun ShiJiNavGraph() {
                     navController.navigate("appdetail?package=$pkg")
                 })
             }
-            composable("settings") { SettingsScreen(container) }
+            composable("settings") {
+                // 设置页 → 隐私政策页
+                SettingsScreen(container, onPrivacyClick = {
+                    navController.navigate("privacy")
+                })
+            }
+            // 隐私政策页（M6 起）：内置静态文本，不联网
+            composable("privacy") {
+                PrivacyPolicyScreen(onBack = { navController.popBackStack() })
+            }
             // 应用详情页（M5 起）：单应用曲线 + 时段分布 + 会话列表
             composable(
                 route = "appdetail?package={packageName}",

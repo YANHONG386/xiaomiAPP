@@ -26,3 +26,6 @@ Thumbs.db
 # 其他
 *.log
 captures/
+
+# 发布产物（签名 APK、软著材料等，按需手动导出）
+release/

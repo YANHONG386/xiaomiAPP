@@ -43,10 +43,14 @@ import com.shiji.trace.core.di.AppContainer
  * 设置页
  * - 授权状态卡（未授权可跳系统设置）
  * - 电池白名单引导（只跳系统设置页，不申请权限——规避商店审核敏感项）
- * - 关于（版本、纯单机声明）
+ * - 关于（版本、纯单机声明、隐私政策入口）
+ * @param onPrivacyClick 点击隐私政策 → 打开隐私政策页
  */
 @Composable
-fun SettingsScreen(container: AppContainer) {
+fun SettingsScreen(
+    container: AppContainer,
+    onPrivacyClick: () -> Unit = {},
+) {
     val context = LocalContext.current
     val dataSource = container.usageStatsDataSource
     // 授权状态（页面回到前台时自动刷新——从系统设置页返回时会变化）
@@ -177,6 +181,13 @@ fun SettingsScreen(container: AppContainer) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(Modifier.height(12.dp))
+                TextButton(
+                    onClick = onPrivacyClick,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("查看隐私政策")
+                }
             }
         }
     }
