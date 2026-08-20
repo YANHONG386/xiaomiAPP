@@ -1,9 +1,10 @@
 // 时迹 —— 使用时间线页
-// 泳道式竖向时间轴：每个应用一条泳道，胶囊 = 单次使用（位置按时间比例定位）
-// 并行段橙色高亮 + "并行"徽标；点击胶囊 → 底部弹出会话详情，可解除误判的并行标记
+// 布局：顶部图例（色块+应用名）→ 可折叠的"时间轴总览"（默认收起）→ 每个应用独立的同款时间轴卡片
+// 时间胶囊为纯色块（无文字），并行段用橙色描边区分；点击胶囊 → 底部弹出会话详情
 
 package com.shiji.trace.ui.screens.timeline
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,6 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ViewTimeline
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -40,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,8 +54,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.shiji.trace.core.di.AppContainer
@@ -76,9 +82,10 @@ private data class AppLane(
 /**
  * 时间线页
  * - 顶部日期条：左右切换日期（未来不可翻），点击日期回到今天
- * - 中部泳道时间轴：应用图标 + 时间带，胶囊按起止时间定位
- * - 并行段：橙色描边 + "并行"徽标
- * - 点击胶囊：底部弹窗详情（起止/时长/并行应用），支持解除并行标记
+ * - 图例条：所有应用的颜色色块 + 应用名（说明每个色块代表哪个应用）
+ * - 时间轴总览：可折叠区块（默认收起），展开后展示全部应用的泳道
+ * - 单应用卡片：每个应用独立的同款时间轴（默认收起，点击展开）
+ * - 时间胶囊为纯色块；并行段橙色描边；点击胶囊 → 底部弹窗详情
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,16 +161,84 @@ fun TimelineScreen(container: AppContainer) {
                         )
                     }
                 }
+                return@LazyColumn
             }
-            items(lanes, key = { it.packageName }) { lane ->
-                AppLaneRow(
-                    lane = lane,
-                    dayStartMs = dayStartMs,
-                    dayEndMs = dayEndMs,
-                    isDark = isSystemInDarkTheme(),
-                    groupBySession = groupBySession,
-                    onSessionClick = { detailSessionId = it.id },
-                )
+
+            // —— 顶部图例：色块 + 应用名 ——
+            item {
+                LegendBar(lanes = lanes, isDark = isSystemInDarkTheme())
+            }
+
+            // —— 时间轴总览（可折叠，默认收起）——
+            item {
+                var expanded by rememberSaveable { mutableStateOf(false) }
+                CollapsibleCard(
+                    title = {
+                        Icon(
+                            Icons.Filled.ViewTimeline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("时间轴总览", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "${lanes.size} 个应用",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    expanded = expanded,
+                    onToggle = { expanded = !expanded },
+                ) {
+                    lanes.forEach { lane ->
+                        AppLaneRow(
+                            lane = lane,
+                            dayStartMs = dayStartMs,
+                            dayEndMs = dayEndMs,
+                            isDark = isSystemInDarkTheme(),
+                            groupBySession = groupBySession,
+                            onSessionClick = { detailSessionId = it.id },
+                        )
+                    }
+                }
+            }
+
+            // —— 每个应用独立的同款时间轴（默认收起）——
+            items(lanes, key = { "app-${it.packageName}" }) { lane ->
+                var expanded by rememberSaveable(lane.packageName) { mutableStateOf(false) }
+                CollapsibleCard(
+                    title = {
+                        AppIcon(packageName = lane.packageName, size = 24.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            rememberAppLabel(LocalContext.current, lane.packageName),
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.weight(1f))
+                        Text(
+                            TimeFormat.formatDurationShort(lane.totalMs),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    expanded = expanded,
+                    onToggle = { expanded = !expanded },
+                ) {
+                    // 该应用的时间轴（全宽色块，样式与总览一致）
+                    TimelineTrack(
+                        sessions = lane.sessions,
+                        dayStartMs = dayStartMs,
+                        dayEndMs = dayEndMs,
+                        isDark = isSystemInDarkTheme(),
+                        groupBySession = groupBySession,
+                        onSessionClick = { detailSessionId = it.id },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             item { Spacer(Modifier.height(16.dp)) }
         }
@@ -215,7 +290,86 @@ private fun DateSelectorBar(
     }
 }
 
-/** 单条应用泳道：左侧图标+名称，右侧时间带内按比例定位胶囊 */
+/** 图例条：每个应用一个色块 + 应用名，说明时间轴上每个颜色代表哪个应用 */
+@Composable
+private fun LegendBar(lanes: List<AppLane>, isDark: Boolean) {
+    val context = LocalContext.current
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        lanes.forEach { lane ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // 色块：与时间轴胶囊同一套颜色（appColor）
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(appColor(lane.packageName, isDark))
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    rememberAppLabel(context, lane.packageName),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 可折叠卡片：标题行（点击切换）+ 展开内容（带动画）
+ * 时间轴总览与单应用时间轴共用此结构，保证交互一致
+ */
+@Composable
+private fun CollapsibleCard(
+    title: @Composable () -> Unit,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+    ) {
+        // 标题行：整个可点击，展开/收起切换
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            title()
+            Spacer(Modifier.width(8.dp))
+            // 展开指示箭头（收起 ▸ / 展开 ▾）
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "收起" else "展开",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 8.dp, end = 8.dp, bottom = 10.dp)
+            ) {
+                content()
+            }
+        }
+    }
+}
+
+/** 单条应用泳道（总览展开态）：左侧图标+名称，右侧纯色块时间带 */
 @Composable
 private fun AppLaneRow(
     lane: AppLane,
@@ -227,84 +381,102 @@ private fun AppLaneRow(
 ) {
     val context = LocalContext.current
     val label = rememberAppLabel(context, lane.packageName)
-    val daySpan = (dayEndMs - dayStartMs).toFloat()
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         // 左侧：图标 + 应用名（固定宽，超长省略）
         Column(
-            modifier = Modifier.width(84.dp),
+            modifier = Modifier.width(72.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            AppIcon(packageName = lane.packageName, size = 30.dp)
+            AppIcon(packageName = lane.packageName, size = 26.dp)
             Spacer(Modifier.height(2.dp))
             Text(
                 label,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
         Spacer(Modifier.width(10.dp))
 
-        // 右侧：时间带（0:00 → 24:00），胶囊按起止比例定位
-        BoxWithConstraints(
-            modifier = Modifier.weight(1f).height(40.dp)
-        ) {
-            val trackWidth = maxWidth
-            // 时间带底色（细条）
+        // 右侧：纯色块时间带（0:00 → 24:00，无文字）
+        TimelineTrack(
+            sessions = lane.sessions,
+            dayStartMs = dayStartMs,
+            dayEndMs = dayEndMs,
+            isDark = isDark,
+            groupBySession = groupBySession,
+            onSessionClick = onSessionClick,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/**
+ * 时间带：0:00 → 24:00 横轴，会话 = 纯色块胶囊（按起止时间比例定位）
+ * 注意：胶囊内不显示任何文字（观看更清爽）；并行段用橙色描边区分
+ */
+@Composable
+private fun TimelineTrack(
+    sessions: List<AppSessionEntity>,
+    dayStartMs: Long,
+    dayEndMs: Long,
+    isDark: Boolean,
+    groupBySession: Map<Long, ParallelGroupEntity>,
+    onSessionClick: (AppSessionEntity) -> Unit,
+    modifier: Modifier = Modifier,
+    trackHeight: Dp = 32.dp,
+) {
+    val daySpan = (dayEndMs - dayStartMs).toFloat()
+    BoxWithConstraints(
+        modifier = modifier.height(trackHeight)
+    ) {
+        val trackWidth = maxWidth
+        // 时间带底色（细条）
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .align(Alignment.Center)
+                .background(
+                    MaterialTheme.colorScheme.surfaceVariant,
+                    RoundedCornerShape(2.dp)
+                )
+        )
+        sessions.forEach { s ->
+            val startRatio = ((s.startTimeMs - dayStartMs).toFloat() / daySpan)
+                .coerceIn(0f, 1f)
+            val widthRatio = (s.durationMs.toFloat() / daySpan).coerceIn(0.035f, 1f)
+            val group = groupBySession[s.id]
+            // 纯色块（无文字）：并行段 = 主题橙描边 + 淡橙底，普通段 = 应用色
+            // 注意：必须 align(Center) 与底条同心，否则色块会贴顶盖住细条（视觉偏差约 3dp）
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp)
                     .align(Alignment.Center)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        RoundedCornerShape(2.dp)
-                    )
-            )
-            lane.sessions.forEach { s ->
-                val startRatio = ((s.startTimeMs - dayStartMs).toFloat() / daySpan)
-                    .coerceIn(0f, 1f)
-                val widthRatio = (s.durationMs.toFloat() / daySpan).coerceIn(0.035f, 1f)
-                val group = groupBySession[s.id]
-                Box(
-                    modifier = Modifier
-                        .offset(x = trackWidth * startRatio)
-                        .width(trackWidth * widthRatio)
-                        .height(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .then(
-                            if (group != null) {
-                                // 并行段：主题橙描边 + 淡橙底 + 徽标
-                                Modifier
-                                    .background(MaterialTheme.colorScheme.primaryContainer)
-                                    .border(
-                                        width = 1.5.dp,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shape = RoundedCornerShape(10.dp)
-                                    )
-                            } else {
-                                Modifier.background(
-                                    appColor(lane.packageName, isDark).copy(alpha = 0.55f)
+                    .offset(x = trackWidth * startRatio)
+                    .width(trackWidth * widthRatio)
+                    .height(26.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .then(
+                        if (group != null) {
+                            Modifier
+                                .background(MaterialTheme.colorScheme.primaryContainer)
+                                .border(
+                                    width = 1.5.dp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(10.dp)
                                 )
-                            }
-                        )
-                        .clickable { onSessionClick(s) }
-                ) {
-                    if (group != null) {
-                        Text(
-                            "并行",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    }
-                }
-            }
+                        } else {
+                            Modifier.background(
+                                appColor(s.packageName, isDark).copy(alpha = 0.55f)
+                            )
+                        }
+                    )
+                    .clickable { onSessionClick(s) }
+            )
         }
     }
 }
@@ -425,8 +597,6 @@ private fun ParallelChip(label: String) {
 
 // —— 工具 ——
 
-/** 应用显示名（包管理器解析，取不到用包名兜底） */
-@Composable
 /** 按包名哈希生成固定颜色（同一应用不同日期颜色一致；深色模式加深） */
 private fun appColor(packageName: String, isDark: Boolean): androidx.compose.ui.graphics.Color {
     val hue = ((packageName.hashCode() % 360) + 360) % 360
