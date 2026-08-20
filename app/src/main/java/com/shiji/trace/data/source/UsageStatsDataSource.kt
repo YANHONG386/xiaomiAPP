@@ -18,13 +18,15 @@ import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_FOREGROUND
 import com.shiji.trace.data.db.entity.EVENT_PAUSED
 import com.shiji.trace.data.db.entity.EVENT_RESUMED
 import com.shiji.trace.data.db.entity.EVENT_SCREEN_NON_INTERACTIVE
+import com.shiji.trace.data.sync.SyncEventSource
 import com.shiji.trace.domain.SessionEvent
 
 /**
  * 系统使用统计数据源
  * 所有与 UsageStatsManager 的交互集中在此，其他层不直接接触系统 API
+ * 实现 SyncEventSource 接口 → 可直接作为同步引擎的事件源
  */
-class UsageStatsDataSource(private val context: Context) {
+class UsageStatsDataSource(private val context: Context) : SyncEventSource {
 
     /** 系统使用统计管理器（懒加载） */
     private val usageStatsManager: UsageStatsManager?
@@ -89,7 +91,7 @@ class UsageStatsDataSource(private val context: Context) {
      * @param endMs 结束时间（epoch 毫秒）
      * @return 简化事件列表（时间升序），未授权或失败返回空列表
      */
-    fun queryEvents(startMs: Long, endMs: Long): List<SessionEvent> {
+    override fun queryEvents(startMs: Long, endMs: Long): List<SessionEvent> {
         val manager = usageStatsManager ?: return emptyList()
         return try {
             val events = manager.queryEvents(startMs, endMs)
@@ -118,7 +120,7 @@ class UsageStatsDataSource(private val context: Context) {
      * 查询某应用某天的总使用时长（系统聚合口径，用于快照交叉校验）
      * @return 该时间段内应用使用总时长（毫秒），未知返回 null
      */
-    fun queryAppTotalTime(packageName: String, startMs: Long, endMs: Long): Long? {
+    override fun queryAppTotalTime(packageName: String, startMs: Long, endMs: Long): Long? {
         val manager = usageStatsManager ?: return null
         return try {
             val stats = manager.queryUsageStats(

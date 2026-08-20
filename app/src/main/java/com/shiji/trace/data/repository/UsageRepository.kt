@@ -12,6 +12,7 @@ import com.shiji.trace.domain.SessionData
 import com.shiji.trace.data.source.UsageStatsDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,23 +47,44 @@ class UsageRepository(
     fun observeSessions(date: String): Flow<List<AppSessionEntity>> =
         db.appSessionDao().observeByDate(date)
 
-    /** 某日并行组（响应式；当日实时计算，历史按需计算） */
+    /**
+     * 某日并行组（响应式）
+     * - 当日：从实时会话流推导（不落库，每次同步后自动更新）
+     * - 历史日期：首次查看时按需计算并缓存到 parallel_group 表
+     */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun observeParallelGroups(date: String): Flow<List<ParallelGroupEntity>> {
-        // 历史日期的并行组在查看时按需计算并缓存
-        return db.parallelGroupDao().observeByDate(date).map { cached ->
-            if (cached.isEmpty() && date != today()) {
-                // 历史日期无缓存 → 从会话重算
+        if (date == today()) {
+            return db.appSessionDao().observeByDate(date).mapLatest { sessions ->
+                detectParallel(date, sessions) // 当日直接推导，不写库
+            }
+        }
+        // 历史日期：查看时按需计算并缓存
+        return db.parallelGroupDao().observeByDate(date).mapLatest { cached ->
+            if (cached.isEmpty()) {
                 recomputeParallelGroups(date)
             }
             db.parallelGroupDao().queryByDate(date) // 重算后再次查询
         }
     }
 
-    /** 从会话重算某日并行组并缓存 */
-    private fun recomputeParallelGroups(date: String): List<ParallelGroupEntity> {
+    /** 从会话重算某日并行组并缓存（先清空旧的，避免残留） */
+    private suspend fun recomputeParallelGroups(date: String): List<ParallelGroupEntity> {
         val sessions = db.appSessionDao().queryByDate(date)
-        val groups = ParallelDetector.detect(
-            sessions.map {
+        // 先清空旧缓存，避免残留（同一天重算时）
+        db.parallelGroupDao().deleteByDate(date)
+        val entities = detectParallel(date, sessions)
+        db.parallelGroupDao().insertAll(entities)
+        return entities
+    }
+
+    /** 会话列表 → 并行组实体（过滤系统应用；当日实时推导与历史落库共用） */
+    private fun detectParallel(
+        date: String,
+        sessions: List<AppSessionEntity>,
+    ): List<ParallelGroupEntity> =
+        ParallelDetector.detect(
+            sessions.filter { !it.isSystem }.map {
                 SessionData(
                     packageName = it.packageName,
                     startMs = it.startTimeMs,
@@ -71,8 +93,7 @@ class UsageRepository(
                 )
             },
             excludePackages = systemPackages,
-        )
-        val entities = groups.map { g ->
+        ).map { g ->
             ParallelGroupEntity(
                 date = date,
                 startMs = g.startMs,
@@ -82,9 +103,6 @@ class UsageRepository(
                 confidence = g.confidence,
             )
         }
-        db.parallelGroupDao().insertAll(entities)
-        return entities
-    }
 
     // —— 统计 ——
 
@@ -103,6 +121,9 @@ class UsageRepository(
 
     /** 日期字符串转毫秒 */
     fun parseDate(date: String): Long = dateFormat.parse(date)?.time ?: 0L
+
+    /** 毫秒转日期字符串（时间线日期切换用） */
+    fun todayDateFromMillis(ms: Long): String = dateFormat.format(Date(ms))
 
     /** 检查授权状态（界面横幅用） */
     fun hasUsageAccess(): Boolean = usageStatsDataSource.hasUsageAccess()

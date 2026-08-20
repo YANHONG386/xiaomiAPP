@@ -91,7 +91,7 @@ fun ShiJiNavGraph() {
             modifier = Modifier.padding(innerPadding)
         ) {
             composable("today") { TodayScreen(container) }
-            composable("timeline") { TimelineScreen() }
+            composable("timeline") { TimelineScreen(container) }
             composable("stats") { StatsScreen() }
             composable("settings") { SettingsScreen(container) }
             // 详情页（M4 起添加）：应用详情、会话详情

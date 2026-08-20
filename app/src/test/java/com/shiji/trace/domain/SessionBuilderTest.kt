@@ -105,7 +105,8 @@ class SessionBuilderTest {
         )
         val sessions = SessionBuilder.build(events)
 
-        assertEquals(2, sessions.size)
+        // 只有 a 一个会话：b 的区间 0ms（3000-3000），被最短 1 秒规则过滤
+        assertEquals(1, sessions.size)
         val a = sessions.first { it.packageName == "com.app.a" }
         // a 未闭合：结束时间 = 最后事件时间（3000），标记 openEnded
         assertTrue(a.openEnded)

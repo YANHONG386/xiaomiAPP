@@ -132,31 +132,40 @@ object ParallelDetector {
             edges.add(Edge(s.startMs, s, isStart = true))
             edges.add(Edge(s.endMs, s, isStart = false))
         }
-        edges.sortWith(compareBy({ it.timeMs }, { !it.isStart }))
+        // 同刻时结束事件先于开始事件（切换语义：先退再进，避免 0ms 假重叠）
+        edges.sortWith(compareBy({ it.timeMs }, { it.isStart }))
 
         val active = LinkedHashMap<String, SessionData>() // 活跃会话（保序）
+        // 当前并行段内出现过的应用（去重保序）。注意：不能用"段结束时 active 的快照"，
+        // 那会漏掉已在段中退出的应用（如三应用并行中先退出的那个）
+        val groupPackages = LinkedHashSet<String>()
         val groups = ArrayList<ParallelGroupData>()
         var overlapStart: Long? = null // 当前并行段起点
 
         for (edge in edges) {
             if (edge.isStart) {
                 active[edge.session.packageName] = edge.session
+                // 段进行中新进入的应用也计入本段
+                if (overlapStart != null) groupPackages.add(edge.session.packageName)
             } else {
-                // 同包名可能有多个会话（不应发生，防御性处理：按包名移除即可）
+                // 结束事件：先记入本段再移除（否则移除后快照会漏掉刚退出的应用）
+                if (overlapStart != null) groupPackages.add(edge.session.packageName)
                 active.remove(edge.session.packageName)
             }
 
-            if (active.size >= 2 && overlapStart == null) {
-                // 并行段开始
-                overlapStart = edge.timeMs
-            } else if (active.size < 2 && overlapStart != null) {
-                // 并行段结束：输出一段并行组
+            if (overlapStart != null && active.size < 2) {
+                // 并行段结束：输出段内全部出现过的应用
                 val start = overlapStart
                 val end = edge.timeMs
                 overlapStart = null
                 if (end - start >= MIN_SESSION_DURATION_MS) {
-                    groups.add(buildGroup(start, end, active.keys.toList(), sessions))
+                    groups.add(buildGroup(start, end, groupPackages.toList(), sessions))
                 }
+                groupPackages.clear()
+            } else if (overlapStart == null && active.size >= 2) {
+                // 并行段开始：当前活跃应用全部入组
+                overlapStart = edge.timeMs
+                groupPackages.addAll(active.keys)
             }
         }
         return groups

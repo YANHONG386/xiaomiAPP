@@ -31,7 +31,9 @@ import com.shiji.trace.data.db.entity.UsageEventEntity
         ParallelGroupEntity::class,   // 并行结果（永久）
     ],
     version = 1,
-    exportSchema = true
+    // 不导出 schema：个人项目、当前无版本迁移计划；将来需要迁移时再配置
+    // room.schemaLocation 并打开导出，编写 Migration 测试
+    exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun usageEventDao(): UsageEventDao

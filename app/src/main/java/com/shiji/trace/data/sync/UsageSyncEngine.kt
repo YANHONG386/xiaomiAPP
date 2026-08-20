@@ -124,7 +124,16 @@ class UsageSyncEngine(
         val now = nowProvider()
         // 游标起点：上次同步位置回退 5 分钟（容忍事件延迟上报）
         val cursor = cursorStore.readCursor() ?: return backfill(now)
-        var fromMs = cursor - CURSOR_BACKTRACK_MS
+
+        // —— 时钟回拨检测：当前时间比游标早超过阈值（≥2h）→ 系统时钟被调回 ——
+        // 游标已超前失效：若按旧游标查询，窗口 (游标, 现在) 为空，永远同步不到
+        // 新事件（死锁）。处理：游标重置到"现在 - 12 小时"重新增量拉取，
+        // 覆盖调回期间错过的区间
+        if (now < cursor - CLOCK_RESET_THRESHOLD_MS) {
+            cursorStore.writeCursor(now - CHUNK_MS)
+        }
+        // 重新读取游标（可能刚被回拨检测重置）
+        var fromMs = (cursorStore.readCursor() ?: cursor) - CURSOR_BACKTRACK_MS
         if (fromMs < 0) fromMs = 0
 
         var totalInserted = 0
@@ -134,13 +143,6 @@ class UsageSyncEngine(
             val chunkEnd = minOf(chunkStart + CHUNK_MS, now)
             val events = eventSource.queryEvents(chunkStart, chunkEnd)
             if (events.isNotEmpty()) {
-                // —— 时钟回拨检测：事件时间远早于游标 → 时钟被修改，重置游标重拉 ——
-                if (events.first().timeMs < cursor - CLOCK_RESET_THRESHOLD_MS) {
-                    // 重置游标到最早新事件处，重新同步
-                    cursorStore.writeCursor(events.first().timeMs)
-                    chunkStart = events.first().timeMs
-                    continue
-                }
                 val inserted = writeEvents(events)
                 totalInserted += inserted
                 // 游标推进到最大写入事件时间（回退 5 分钟余量）

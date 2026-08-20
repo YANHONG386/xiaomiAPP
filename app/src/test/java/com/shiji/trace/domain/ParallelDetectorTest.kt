@@ -75,8 +75,9 @@ class ParallelDetectorTest {
         val g = groups[0]
         assertEquals(2000, g.startMs)
         assertEquals(4000, g.endMs)
-        // B 的区间完全包含在并行段内 → 高重合 → 高置信
-        assertEquals(CONFIDENCE_HIGH, g.confidence)
+        // 置信度：只有 B 高重合（段内占比 1.0），A 与段重合度低（2000/7000≈0.29）。
+        // 规则：≥2 个应用重合 ≥0.5 才高置信；此处与画中画场景结构相同 → 低置信
+        assertEquals(CONFIDENCE_LOW, g.confidence)
     }
 
     // —— 场景 5：崩溃无退后台事件（openEnded）→ 切换截断，无并行 ——

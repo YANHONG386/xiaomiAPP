@@ -65,7 +65,7 @@ fun AppIcon(packageName: String, size: Dp = 40.dp) {
         val d = drawable
         if (d != null) {
             Image(
-                bitmap = d.toBitmap(size = 64).asImageBitmap(),
+                bitmap = d.toBitmap(width = 64, height = 64).asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier.size(size)
             )

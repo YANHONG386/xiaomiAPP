@@ -146,15 +146,15 @@ class UsageSyncEngineTest {
         assertEquals(0, second, "第二次同步应无新数据")
     }
 
-    // —— 场景 4：时钟回拨检测（事件远早于游标 → 重置）——
+    // —— 场景 4：时钟回拨检测（当前时间早于游标 → 重置游标重新同步）——
     @Test
     fun `时钟回拨时重置游标重新同步`() = runTest {
         val now = 10_000_000_000L
         val (engine, storage, cursor) = engine(emptyList(), now = now)
-        // 预置游标：当前时间（用户刚改过时钟或系统恢复）
-        cursor.writeCursor(now)
+        // 预置游标：超前 5 小时（时钟曾调快后同步过，现在调回正常时间）
+        cursor.writeCursor(now + 5 * HOUR)
 
-        // 事件源：早于游标 5 小时的事件（超过 2h 回拨阈值）
+        // 事件源：5 小时前的事件（调回期间错过的区间，尚未同步）
         val source = FakeEventSource(
             listOf(
                 SessionEvent(now - 5 * HOUR, "com.app.a", EVENT_RESUMED),
@@ -166,7 +166,7 @@ class UsageSyncEngineTest {
 
         engine2.syncIncremental()
 
-        // 事件应被重新写入，游标重置到最早事件时间
+        // 事件应被重新写入，游标重置后回退到最早事件附近
         assertTrue(storage.eventStore.isNotEmpty(), "时钟回拨后应重新拉取事件")
         assertTrue((cursor.cursor ?: 0) < now - 4 * HOUR, "游标应回退到最早事件附近")
     }

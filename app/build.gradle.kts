@@ -1,6 +1,8 @@
 // 时迹 —— app 模块构建脚本
 // 注意：本项目是纯单机应用，红线 = 不申请 INTERNET 权限、不引任何网络库
 
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -10,7 +12,8 @@ plugins {
 
 android {
     namespace = "com.shiji.trace"
-    compileSdk = 36
+    compileSdk = 37   // 本机 SDK 只有 android-37 平台（dl.google.com 不可达，装不了 36；AGP 对 37 仅警告）
+    buildToolsVersion = "36.0.0"   // 本机 build-tools 35 目录是空壳，36 完整可用
 
     defaultConfig {
         applicationId = "com.shiji.trace"
@@ -30,12 +33,14 @@ android {
             // 签名配置在本地 keystore.properties 中读取（不入库，见 .gitignore）
             val keystoreProps = rootProject.file("keystore.properties")
             if (keystoreProps.exists()) {
-                val props = java.util.Properties().apply { load(keystoreProps.inputStream()) }
+                val props = Properties().apply { load(keystoreProps.inputStream()) }
+                // 安全取值：值不存在时返回空串（签名时再由 Gradle 报错提示）
+                fun prop(key: String) = props[key] as? String ?: ""
                 signingConfig = signingConfigs.create("release") {
-                    storeFile = rootProject.file(props["storeFile"] as String)
-                    storePassword = props["storePassword"] as String
-                    keyAlias = props["keyAlias"] as String
-                    keyPassword = props["keyPassword"] as String
+                    storeFile = rootProject.file(prop("storeFile"))
+                    storePassword = prop("storePassword")
+                    keyAlias = prop("keyAlias")
+                    keyPassword = prop("keyPassword")
                 }
             }
             proguardFiles(
@@ -50,12 +55,16 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    // Kotlin 编译目标（新 DSL，替代已弃用的 kotlinOptions）
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 
     buildFeatures {
         compose = true                    // 开启 Compose
+        buildConfig = true                // 生成 BuildConfig（设置页显示版本号用）
     }
 }
 
