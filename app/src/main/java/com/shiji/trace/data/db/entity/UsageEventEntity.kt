@@ -8,23 +8,20 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-// —— 事件类型常量（与系统 UsageEvents.Event 的类型号一致，只存需要的）——
-/** 应用进入前台（Activity 可见） */
-const val EVENT_RESUMED = 1
-/** 应用退到后台（Activity 不可见） */
-const val EVENT_PAUSED = 2
-/** 应用移动到前台（Activity 启动） */
-const val EVENT_MOVE_TO_FOREGROUND = 5
-/** 应用移动到后台 */
-const val EVENT_MOVE_TO_BACKGROUND = 6
-/** 锁屏界面显示 */
-const val EVENT_KEYGUARD_SHOWN = 7
-/** 锁屏界面隐藏 */
-const val EVENT_KEYGUARD_HIDDEN = 8
-/** 屏幕关闭（非交互） */
-const val EVENT_SCREEN_NON_INTERACTIVE = 9
-/** 设备关机 */
-const val EVENT_DEVICE_SHUTDOWN = 10
+// —— 事件类型常量（与系统 UsageEvents.Event 的类型号一一对应，只存需要的）——
+// 注意：类型号必须与系统一致（以 SDK android.jar 中 UsageEvents$Event 的常量为准，
+// 凭记忆写过两版错的：7/9/10 与 11/13/15，都导致锁屏误判/幽灵会话）。
+// 官方值：1=进前台 2=退后台 11=待机桶变更(噪音) 15=亮屏 16=熄屏 17=锁屏 18=解锁 26=关机
+/** 应用移动到前台（Activity 可见）—— 会话开区间 */
+const val EVENT_MOVE_TO_FOREGROUND = 1
+/** 应用移动到后台（Activity 不可见）—— 会话关区间 */
+const val EVENT_MOVE_TO_BACKGROUND = 2
+/** 屏幕非交互（息屏）—— 关闭全部活跃会话 */
+const val EVENT_SCREEN_NON_INTERACTIVE = 16
+/** 锁屏界面显示 —— 关闭全部活跃会话 */
+const val EVENT_KEYGUARD_SHOWN = 17
+/** 设备关机 —— 关闭全部活跃会话 */
+const val EVENT_DEVICE_SHUTDOWN = 26
 
 /**
  * 使用事件实体

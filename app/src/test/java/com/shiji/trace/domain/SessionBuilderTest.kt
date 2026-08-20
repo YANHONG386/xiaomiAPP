@@ -6,8 +6,7 @@ import com.shiji.trace.data.db.entity.EVENT_DEVICE_SHUTDOWN
 import com.shiji.trace.data.db.entity.EVENT_KEYGUARD_SHOWN
 import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_BACKGROUND
 import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_FOREGROUND
-import com.shiji.trace.data.db.entity.EVENT_PAUSED
-import com.shiji.trace.data.db.entity.EVENT_RESUMED
+import com.shiji.trace.data.db.entity.EVENT_SCREEN_NON_INTERACTIVE
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -16,11 +15,11 @@ class SessionBuilderTest {
 
     /** 便捷构造：前台事件 */
     private fun fg(time: Long, pkg: String = "com.app.a") =
-        SessionEvent(time, pkg, EVENT_RESUMED)
+        SessionEvent(time, pkg, EVENT_MOVE_TO_FOREGROUND)
 
     /** 便捷构造：后台事件 */
     private fun bg(time: Long, pkg: String = "com.app.a") =
-        SessionEvent(time, pkg, EVENT_PAUSED)
+        SessionEvent(time, pkg, EVENT_MOVE_TO_BACKGROUND)
 
     // —— 场景 1：正常开/关会话 ——
     @Test
@@ -144,5 +143,35 @@ class SessionBuilderTest {
     @Test
     fun `空事件流返回空列表`() {
         assertTrue(SessionBuilder.build(emptyList()).isEmpty())
+    }
+
+    // —— 场景 10：跨午夜"孤立退后台"不产生幽灵会话 ——
+    // 真机回归：应用昨晚进前台（START 在昨天窗口外），今早才退后台（PAUSED 在窗口内）。
+    // 重建今天窗口时只有孤立的 PAUSED，若把它当成"从窗口起点活跃"会虚增数小时时长
+    @Test
+    fun `孤立退后台事件不产生会话`() {
+        val events = listOf(
+            bg(8 * 3_600_000), // 今早 8 点的退后台事件，但昨晚的进前台事件不在窗口内
+        )
+        val sessions = SessionBuilder.build(events)
+
+        assertTrue(sessions.isEmpty(), "孤立退后台事件不应产生幽灵会话")
+    }
+
+    // —— 场景 11：熄屏事件关闭全部（防止深夜幽灵会话）——
+    // 真机回归：锁屏/熄屏事件类型错位曾导致深夜会话无法关闭（微信 00:06→07:29 虚增 7.4h）
+    @Test
+    fun `熄屏事件关闭全部活跃会话`() {
+        val events = listOf(
+            fg(1000, "com.app.a"),
+            fg(2000, "com.app.b"),
+            SessionEvent(3000, "com.app.a", EVENT_SCREEN_NON_INTERACTIVE),
+            bg(4000, "com.app.a"), // 熄屏后的事件应被忽略
+        )
+        val sessions = SessionBuilder.build(events)
+
+        assertEquals(2, sessions.size)
+        assertTrue(sessions.all { it.endMs == 3000L }, "会话应在熄屏时刻关闭")
+        assertTrue(sessions.none { it.startMs > 3000L }, "熄屏后不应再开新会话")
     }
 }

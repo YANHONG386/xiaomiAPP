@@ -7,8 +7,6 @@ import com.shiji.trace.data.db.entity.EVENT_DEVICE_SHUTDOWN
 import com.shiji.trace.data.db.entity.EVENT_KEYGUARD_SHOWN
 import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_BACKGROUND
 import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_FOREGROUND
-import com.shiji.trace.data.db.entity.EVENT_PAUSED
-import com.shiji.trace.data.db.entity.EVENT_RESUMED
 import com.shiji.trace.data.db.entity.EVENT_SCREEN_NON_INTERACTIVE
 
 /** 最短有效会话时长（毫秒）。小于此值的会话丢弃（系统 UI 弹层等抖动） */
@@ -86,7 +84,7 @@ object SessionBuilder {
                     closeAll(openSessions, event.timeMs, result)
                 }
                 // —— 进入前台：开新区间 ——
-                event.type == EVENT_RESUMED || event.type == EVENT_MOVE_TO_FOREGROUND -> {
+                event.type == EVENT_MOVE_TO_FOREGROUND -> {
                     // 该应用已活跃（连续前台事件）→ 忽略去重
                     if (event.packageName !in openSessions) {
                         openSessions[event.packageName] =
@@ -94,7 +92,7 @@ object SessionBuilder {
                     }
                 }
                 // —— 退到后台：关区间 ——
-                event.type == EVENT_PAUSED || event.type == EVENT_MOVE_TO_BACKGROUND -> {
+                event.type == EVENT_MOVE_TO_BACKGROUND -> {
                     val open = openSessions.remove(event.packageName) ?: continue
                     // 结束时间取事件时间（该时刻应用已不可见）
                     closeSession(open, event.timeMs, result)

@@ -17,6 +17,19 @@
 
     <!-- 注意：没有 INTERNET 权限，本应用完全离线运行 -->
 
+    <!--
+      包可见性声明（Android 11+ 必需，非权限）：
+      默认看不到其他应用，解析应用名/图标会失败回退包名。
+      声明可见所有桌面（LAUNCHER）应用即可正常显示名称与图标，
+      无需 QUERY_ALL_PACKAGES 权限（该权限商店审核敏感，禁用）。
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
     <application
         android:name=".TimelineApp"
         android:allowBackup="true"

@@ -7,8 +7,8 @@ import com.shiji.trace.data.db.entity.DailySnapshotEntity
 import com.shiji.trace.data.db.entity.UsageEventEntity
 import com.shiji.trace.domain.SessionEvent
 import kotlinx.coroutines.test.runTest
-import com.shiji.trace.data.db.entity.EVENT_RESUMED
-import com.shiji.trace.data.db.entity.EVENT_PAUSED
+import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_FOREGROUND
+import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_BACKGROUND
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -92,8 +92,8 @@ class UsageSyncEngineTest {
     fun `无游标时执行回填并写入事件`() = runTest {
         val now = 10_000_000_000L
         val events = listOf(
-            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_RESUMED),
-            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_PAUSED),
+            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
         )
         val (engine, storage, cursor) = engine(events, now = now)
 
@@ -115,8 +115,8 @@ class UsageSyncEngineTest {
         // 事件源补充：游标之后的新事件
         val source = FakeEventSource(
             listOf(
-                SessionEvent(now - 2 * HOUR, "com.app.b", EVENT_RESUMED),
-                SessionEvent(now - 2 * HOUR + 60_000, "com.app.b", EVENT_PAUSED),
+                SessionEvent(now - 2 * HOUR, "com.app.b", EVENT_MOVE_TO_FOREGROUND),
+                SessionEvent(now - 2 * HOUR + 60_000, "com.app.b", EVENT_MOVE_TO_BACKGROUND),
             )
         )
         val engine2 = UsageSyncEngine(source, storage, cursor, emptySet())
@@ -133,8 +133,8 @@ class UsageSyncEngineTest {
     fun `重复同步不产生重复事件`() = runTest {
         val now = 10_000_000_000L
         val events = listOf(
-            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_RESUMED),
-            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_PAUSED),
+            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
         )
         val (engine, storage, _) = engine(events, now = now)
 
@@ -157,8 +157,8 @@ class UsageSyncEngineTest {
         // 事件源：5 小时前的事件（调回期间错过的区间，尚未同步）
         val source = FakeEventSource(
             listOf(
-                SessionEvent(now - 5 * HOUR, "com.app.a", EVENT_RESUMED),
-                SessionEvent(now - 5 * HOUR + 60_000, "com.app.a", EVENT_PAUSED),
+                SessionEvent(now - 5 * HOUR, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+                SessionEvent(now - 5 * HOUR + 60_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
             )
         )
         val engine2 = UsageSyncEngine(source, storage, cursor, emptySet())
@@ -176,8 +176,8 @@ class UsageSyncEngineTest {
     fun `同步后当日会话被重建`() = runTest {
         val now = 10_000_000_000L
         val events = listOf(
-            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_RESUMED),
-            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_PAUSED),
+            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
         )
         val (engine, storage, _) = engine(events, now = now)
 
@@ -194,10 +194,10 @@ class UsageSyncEngineTest {
     fun `同步后生成每日快照`() = runTest {
         val now = 10_000_000_000L
         val events = listOf(
-            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_RESUMED),
-            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_PAUSED),
-            SessionEvent(now - 1 * HOUR, "com.app.a", EVENT_RESUMED),
-            SessionEvent(now - 1 * HOUR + 30_000, "com.app.a", EVENT_PAUSED),
+            SessionEvent(now - 2 * HOUR, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(now - 2 * HOUR + 60_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
+            SessionEvent(now - 1 * HOUR, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(now - 1 * HOUR + 30_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
         )
         val (engine, storage, _) = engine(events, now = now)
 
@@ -214,8 +214,8 @@ class UsageSyncEngineTest {
     fun `系统应用不生成快照`() = runTest {
         val now = 10_000_000_000L
         val events = listOf(
-            SessionEvent(now - 2 * HOUR, "com.android.launcher", EVENT_RESUMED),
-            SessionEvent(now - 2 * HOUR + 60_000, "com.android.launcher", EVENT_PAUSED),
+            SessionEvent(now - 2 * HOUR, "com.android.launcher", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(now - 2 * HOUR + 60_000, "com.android.launcher", EVENT_MOVE_TO_BACKGROUND),
         )
         val (engine, storage, _) = engine(events, now = now, systemPackages = setOf("com.android.launcher"))
 
@@ -232,5 +232,37 @@ class UsageSyncEngineTest {
         val inserted = engine.syncIncremental()
         assertEquals(0, inserted)
         assertTrue(storage.sessionStore.isEmpty())
+    }
+
+    // —— 场景 9：跨午夜会话不虚增今日快照 ——
+    // 真机回归：应用昨晚进前台（START 在昨天窗口）、今早退后台（PAUSED 在今天窗口）。
+    // rebuildDay 重建今天时必须只从"今天 0 点"起算，孤立退后台事件不产生会话，
+    // 否则今天的快照会虚增数小时（曾出现"今日已用 40 小时"的 bug）
+    @Test
+    fun `跨午夜会话不虚增今日快照`() = runTest {
+        val now = 10_000_000_000L
+        // 计算"今天 0 点"（与引擎同口径：本地时区）
+        val cal = java.util.Calendar.getInstance().apply {
+            timeInMillis = now
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }
+        val todayStart = cal.timeInMillis
+        // 昨天 23:50 进前台 + 今天 07:29 退后台（跨午夜会话）
+        val events = listOf(
+            SessionEvent(todayStart - 10 * 60_000, "com.app.a", EVENT_MOVE_TO_FOREGROUND),
+            SessionEvent(todayStart + 7 * HOUR + 29 * 60_000, "com.app.a", EVENT_MOVE_TO_BACKGROUND),
+        )
+        val (engine, storage, _) = engine(events, now = now)
+
+        engine.syncIncremental() // 无游标 → 回填 + 重建今日
+
+        // 今天的快照应为空：跨午夜会话属于昨天，今天只有孤立退后台事件
+        assertTrue(
+            storage.snapshotStore.values.none { it.totalTimeMs > 2 * HOUR },
+            "跨午夜会话不应虚增今日快照"
+        )
     }
 }

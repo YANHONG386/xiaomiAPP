@@ -153,9 +153,10 @@ class UsageSyncEngine(
         }
 
         // 后处理：重建当日会话 + 快照（有新数据才处理，避免无谓开销）
+        // 注意：起始必须是"今天 0 点"而非 now-24h，否则会把昨天的事件计入今天快照
         if (totalInserted > 0) {
             val today = formatDate(now)
-            rebuildDay(today, now - (24L * 60 * 60 * 1000), now)
+            rebuildDay(today, parseDateMillis(today), now)
         }
         return totalInserted
     }
@@ -196,9 +197,10 @@ class UsageSyncEngine(
             dayStart = dayEnd
         }
 
-        // 回填完成后重建最近一天会话
+        // 回填完成后重建最近一天会话（起始 = 今天 0 点，避免跨天误算）
         if (totalInserted > 0) {
-            rebuildDay(formatDate(now), now - dayMs, now)
+            val today = formatDate(now)
+            rebuildDay(today, parseDateMillis(today), now)
         }
         _backfillProgress.value = null
         return totalInserted

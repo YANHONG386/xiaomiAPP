@@ -55,6 +55,11 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
 
     private val repository: UsageRepository = container.repository
 
+    // 注意：日期格式化器必须声明在 init 块之前！
+    // Kotlin 属性按声明顺序初始化：若放在类尾部，init 里 selectPeriod 调用它时还是 null，
+    // 直接 NPE（真机回归：一切到统计页就崩溃闪退，根因就是初始化顺序）
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
     private val _uiState = MutableStateFlow(StatsUiState())
     val uiState: StateFlow<StatsUiState> = _uiState.asStateFlow()
 
@@ -109,8 +114,6 @@ class StatsViewModel(private val container: AppContainer) : ViewModel() {
             )
         }
     }
-
-    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
     /** 当天 0 点毫秒（时区本地） */
     private fun startOfDay(ms: Long): Long {

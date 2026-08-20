@@ -11,12 +11,9 @@ import android.content.Intent
 import android.provider.Settings
 import android.os.Process
 import com.shiji.trace.data.db.entity.EVENT_DEVICE_SHUTDOWN
-import com.shiji.trace.data.db.entity.EVENT_KEYGUARD_HIDDEN
 import com.shiji.trace.data.db.entity.EVENT_KEYGUARD_SHOWN
 import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_BACKGROUND
 import com.shiji.trace.data.db.entity.EVENT_MOVE_TO_FOREGROUND
-import com.shiji.trace.data.db.entity.EVENT_PAUSED
-import com.shiji.trace.data.db.entity.EVENT_RESUMED
 import com.shiji.trace.data.db.entity.EVENT_SCREEN_NON_INTERACTIVE
 import com.shiji.trace.data.sync.SyncEventSource
 import com.shiji.trace.domain.SessionEvent
@@ -33,11 +30,12 @@ class UsageStatsDataSource(private val context: Context) : SyncEventSource {
         get() = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
 
     // —— 需要记录的事件类型集合（过滤噪音：只存有用的）——
+    // 前台/后台 = 会话开闭；锁屏/熄屏/关机 = 关闭全部活跃会话（防止深夜"幽灵会话"）
+    // 注意：不跟踪 11（STANDBY_BUCKET_CHANGED，小米批量冻结应用会狂发，纯噪音）和
+    // 15（SCREEN_INTERACTIVE，亮屏）——它们没有会话语义，入库只会污染数据
     private val trackedTypes = setOf(
-        EVENT_RESUMED, EVENT_PAUSED,
         EVENT_MOVE_TO_FOREGROUND, EVENT_MOVE_TO_BACKGROUND,
-        EVENT_KEYGUARD_SHOWN, EVENT_KEYGUARD_HIDDEN,
-        EVENT_SCREEN_NON_INTERACTIVE, EVENT_DEVICE_SHUTDOWN,
+        EVENT_KEYGUARD_SHOWN, EVENT_SCREEN_NON_INTERACTIVE, EVENT_DEVICE_SHUTDOWN,
     )
 
     /**
