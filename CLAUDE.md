@@ -32,7 +32,8 @@
 
 ## 提交流程（门禁）
 
-- 提交前必须先跑 `tester`（单元测试）+ `quality-engineer`（质量检查），通过后由 `gitcommit-agent` 执行提交
+- 提交前跑 `quality-engineer`（质量检查），通过后由 `gitcommit-agent` 执行提交
+- `tester`（单元测试）**按需执行**：仅当改动涉及业务逻辑（同步、并行检测、数据层、工具类）时必跑；纯 UI/布局/文案改动可跳过（用户 2026-08-20 确认）
 - 合格证写入 `.claude/gate/`（已被 .gitignore 忽略）
 - 绝不跳过门禁直接提交
 
