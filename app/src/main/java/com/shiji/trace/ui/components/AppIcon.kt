@@ -3,6 +3,7 @@
 
 package com.shiji.trace.ui.components
 
+import android.content.Context
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,8 +24,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import androidx.core.graphics.drawable.toBitmap
 
 /** 应用图标内存缓存（约 200 条，LRU） */
@@ -80,3 +79,19 @@ fun AppIcon(packageName: String, size: Dp = 40.dp) {
         }
     }
 }
+
+/**
+ * 应用显示名（内存缓存避免重复查询；解析失败回退包名）
+ * 注：包管理器在未授权时不可见应用详情，回退包名可正常展示
+ */
+@Composable
+fun rememberAppLabel(context: Context, packageName: String): String =
+    remember(packageName) {
+        try {
+            context.packageManager.getApplicationLabel(
+                context.packageManager.getApplicationInfo(packageName, 0)
+            ).toString()
+        } catch (e: Exception) {
+            packageName
+        }
+    }

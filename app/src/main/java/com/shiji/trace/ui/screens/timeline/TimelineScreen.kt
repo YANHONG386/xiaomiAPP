@@ -4,7 +4,6 @@
 
 package com.shiji.trace.ui.screens.timeline
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -58,6 +57,7 @@ import com.shiji.trace.core.util.TimeFormat
 import com.shiji.trace.data.db.entity.AppSessionEntity
 import com.shiji.trace.data.db.entity.ParallelGroupEntity
 import com.shiji.trace.ui.components.AppIcon
+import com.shiji.trace.ui.components.rememberAppLabel
 import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -427,17 +427,6 @@ private fun ParallelChip(label: String) {
 
 /** 应用显示名（包管理器解析，取不到用包名兜底） */
 @Composable
-private fun rememberAppLabel(context: Context, packageName: String): String =
-    remember(packageName) {
-        try {
-            context.packageManager.getApplicationLabel(
-                context.packageManager.getApplicationInfo(packageName, 0)
-            ).toString()
-        } catch (e: Exception) {
-            packageName
-        }
-    }
-
 /** 按包名哈希生成固定颜色（同一应用不同日期颜色一致；深色模式加深） */
 private fun appColor(packageName: String, isDark: Boolean): androidx.compose.ui.graphics.Color {
     val hue = ((packageName.hashCode() % 360) + 360) % 360

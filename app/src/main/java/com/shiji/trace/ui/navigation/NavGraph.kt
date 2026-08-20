@@ -21,12 +21,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.shiji.trace.R
 import com.shiji.trace.TimelineApp
+import com.shiji.trace.ui.screens.appdetail.AppDetailScreen
 import com.shiji.trace.ui.screens.settings.SettingsScreen
 import com.shiji.trace.ui.screens.stats.StatsScreen
 import com.shiji.trace.ui.screens.timeline.TimelineScreen
@@ -92,10 +95,24 @@ fun ShiJiNavGraph() {
         ) {
             composable("today") { TodayScreen(container) }
             composable("timeline") { TimelineScreen(container) }
-            composable("stats") { StatsScreen() }
+            composable("stats") {
+                // 排行点击 → 应用详情页
+                StatsScreen(container, onAppClick = { pkg ->
+                    navController.navigate("appdetail?package=$pkg")
+                })
+            }
             composable("settings") { SettingsScreen(container) }
-            // 详情页（M4 起添加）：应用详情、会话详情
-            // composable("detail?package={packageName}") { ... }
+            // 应用详情页（M5 起）：单应用曲线 + 时段分布 + 会话列表
+            composable(
+                route = "appdetail?package={packageName}",
+                arguments = listOf(navArgument("packageName") { type = NavType.StringType })
+            ) { entry ->
+                AppDetailScreen(
+                    container = container,
+                    packageName = entry.arguments?.getString("packageName") ?: "",
+                    onBack = { navController.popBackStack() },
+                )
+            }
         }
     }
 }

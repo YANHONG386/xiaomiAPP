@@ -114,6 +114,77 @@ class UsageRepository(
     suspend fun appTotals(startDate: String, endDate: String) =
         db.dailySnapshotDao().queryAppTotalsBetween(startDate, endDate)
 
+    // —— 统计洞察 ——
+
+    /** 统计洞察结果（统计页卡片数据） */
+    data class Insights(
+        /** 段内总使用时长（毫秒，非系统应用） */
+        val totalTimeMs: Long,
+        /** 段内会话数 */
+        val sessionCount: Int,
+        /** 最长单次会话（包名, 时长），无数据为 null */
+        val longestSession: Pair<String, Long>?,
+        /** 深夜（22:00-06:00）使用时长占比 0~1 */
+        val nightRatio: Double,
+    )
+
+    /**
+     * 计算某时间段内的统计洞察
+     * 深夜判定：会话开始时刻落在 22 点后或 6 点前（夜深时段）
+     */
+    suspend fun insights(startMs: Long, endMs: Long): Insights {
+        val sessions = db.appSessionDao()
+            .queryAllBetween(startMs, endMs)
+            .filter { !it.isSystem } // 系统应用不参与统计
+        val total = sessions.sumOf { it.durationMs }
+        // 最长单次会话
+        val longest = sessions.maxByOrNull { it.durationMs }
+            ?.let { it.packageName to it.durationMs }
+        // 深夜时长：按会话开始小时计算
+        val cal = java.util.Calendar.getInstance()
+        val nightMs = sessions.filter { s ->
+            cal.timeInMillis = s.startTimeMs
+            val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+            hour >= 22 || hour < 6
+        }.sumOf { it.durationMs }
+        return Insights(
+            totalTimeMs = total,
+            sessionCount = sessions.size,
+            longestSession = longest,
+            nightRatio = if (total > 0) nightMs.toDouble() / total else 0.0,
+        )
+    }
+
+    // —— 应用详情 ——
+
+    /** 某应用按时长分桶（24 桶，key=开始小时） */
+    data class HourBucket(val hour: Int, val totalMs: Long)
+
+    /** 某应用在某时间段内按开始小时分桶的时长分布（详情页时段分布） */
+    suspend fun appHourlyDistribution(
+        packageName: String,
+        startMs: Long,
+        endMs: Long
+    ): List<HourBucket> {
+        val sessions = db.appSessionDao().queryForApp(packageName, startMs, endMs)
+        // 24 小时桶，会话按开始时刻的小时归桶累计
+        val buckets = Array(24) { 0L }
+        val cal = java.util.Calendar.getInstance()
+        for (s in sessions) {
+            cal.timeInMillis = s.startTimeMs
+            buckets[cal.get(java.util.Calendar.HOUR_OF_DAY)] += s.durationMs
+        }
+        return buckets.mapIndexed { hour, ms -> HourBucket(hour, ms) }
+    }
+
+    /** 某应用某日期段内每日时长（详情页曲线） */
+    suspend fun appDailyTotals(packageName: String, startDate: String, endDate: String) =
+        db.dailySnapshotDao().queryAppDaily(packageName, startDate, endDate)
+
+    /** 某应用某时间段内会话列表（详情页会话列表） */
+    suspend fun appSessions(packageName: String, startMs: Long, endMs: Long) =
+        db.appSessionDao().queryForApp(packageName, startMs, endMs)
+
     // —— 辅助 ——
 
     /** 今日日期字符串 */

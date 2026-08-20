@@ -43,6 +43,17 @@ interface DailySnapshotDao {
     )
     suspend fun queryAppTotalsBetween(startDate: String, endDate: String): List<AppTotalRow>
 
+    /** 查询某应用在某日期段内的每日时长（应用详情页曲线） */
+    @Query(
+        "SELECT date, totalTimeMs FROM daily_snapshot WHERE packageName = :packageName " +
+            "AND date BETWEEN :startDate AND :endDate ORDER BY date ASC"
+    )
+    suspend fun queryAppDaily(
+        packageName: String,
+        startDate: String,
+        endDate: String
+    ): List<DailyTotalRow>
+
     /** 数据行（按日期聚合结果） */
     data class DailyTotalRow(val date: String, val totalTimeMs: Long)
 

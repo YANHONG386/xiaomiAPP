@@ -39,6 +39,10 @@ interface AppSessionDao {
     )
     suspend fun queryForApp(packageName: String, startMs: Long, endMs: Long): List<AppSessionEntity>
 
+    /** 查询某时间段内全部会话（统计洞察计算：最长使用、深夜占比） */
+    @Query("SELECT * FROM app_session WHERE startTimeMs BETWEEN :startMs AND :endMs")
+    suspend fun queryAllBetween(startMs: Long, endMs: Long): List<AppSessionEntity>
+
     /** 删除早于某时间的会话（30 天滚动清理） */
     @Query("DELETE FROM app_session WHERE endTimeMs < :beforeMs")
     suspend fun deleteBefore(beforeMs: Long): Int
