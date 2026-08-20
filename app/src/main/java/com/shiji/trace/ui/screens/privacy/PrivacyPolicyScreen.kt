@@ -80,7 +80,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
 
             Section("七、联系我们")
             Paragraph("本应用为个人开发者作品。如对本隐私政策有任何疑问，" +
-                "可通过小米应用商店本应用详情页的开发者联系方式与我们联系。")
+                "可通过应用商店本应用详情页的开发者联系方式与我们联系。")
 
             Spacer(Modifier.height(32.dp))
             Text(
